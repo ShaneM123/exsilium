@@ -17,28 +17,35 @@ pub struct Game {
     camera_is_focus: Vec3,
 }
 
-const BOARD_SIZE_I: usize = 14;
-const BOARD_SIZE_J: usize = 21;
+const BOARD_SIZE_I: usize = 6;
+const BOARD_SIZE_J: usize = 6;
 
+// 3.0, 2.0, 0.0 coordinates get desired result
 const RESET_FOCUS: [f32; 3] = [
     BOARD_SIZE_I as f32 / 2.0,
-    0.0,
-    BOARD_SIZE_J as f32 / 2.0 - 0.5,
+    2.0,
+    BOARD_SIZE_J as f32 - 6.0,
 ];
 
 pub fn setup_cameras(mut commands: Commands, mut game: ResMut<Game>) {
-    game.camera_should_focus = Vec3::from(RESET_FOCUS);
-    game.camera_is_focus = game.camera_should_focus;
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(
-            -(BOARD_SIZE_I as f32 / 2.0),
-            (BOARD_SIZE_I * BOARD_SIZE_J) as f32 / 5.0,
-            BOARD_SIZE_J as f32 / 2.0 - 0.5,
-        )
-        .looking_at(game.camera_is_focus, Vec3::Y),
-        ..Default::default()
-    });
+    let mut camera = OrthographicCameraBundle::new_3d();
+    camera.orthographic_projection.scale = 4.8;
+    camera.transform =
+        Transform::from_xyz(2.7, 3.0, 0.0).looking_at(Vec3::from(RESET_FOCUS), Vec3::Y);
+    commands.spawn_bundle(camera);
     commands.spawn_bundle(UiCameraBundle::default());
+
+    // game.camera_should_focus = Vec3::from(RESET_FOCUS);
+    // game.camera_is_focus = game.camera_should_focus;
+    // let mut cam_bundle = OrthographicCameraBundle::new_2d();
+    // cam_bundle.transform =        Transform::from_xyz(
+    //     -(BOARD_SIZE_I as f32 / 1.0),
+    //     (BOARD_SIZE_I * BOARD_SIZE_J) as f32 / 10.0,
+    //     BOARD_SIZE_J as f32 / 1.0,
+    // ).looking_at(game.camera_is_focus, Vec3::Y);
+
+    // commands.spawn_bundle(cam_bundle);
+    // commands.spawn_bundle(UiCameraBundle::default());
 }
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMut<Game>) {
