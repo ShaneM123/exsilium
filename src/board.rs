@@ -1,56 +1,56 @@
 use bevy::{
     core::FixedTimestep, ecs::schedule::SystemSet, prelude::*, render::camera::CameraPlugin,
 };
-
 use crate::GameState;
 
 
-struct Cell {
+struct CellHeight {
     height: f32,
+}
+
+
+struct Cell {
+    term: String,
+}
+
+
+#[derive(Default)]
+struct Player {
+    entity: Option<Entity>,
+    row: usize,
+    col: usize,
+    handle: Handle<Scene>,
 }
 
 #[derive(Default)]
 pub struct Game {
-    board: Vec<Vec<Cell>>,
-    score: i32,
+    player: Player,
+    board: Vec<Vec<CellHeight>>,
     camera_should_focus: Vec3,
     camera_is_focus: Vec3,
 }
 
-const BOARD_SIZE_I: usize = 6;
-const BOARD_SIZE_J: usize = 6;
+const BOARD_SIZE_COLS: usize = 6;
+const BOARD_SIZE_ROWS: usize = 6;
 
 // 3.0, 2.0, 0.0 coordinates get desired result
 const RESET_FOCUS: [f32; 3] = [
-    BOARD_SIZE_I as f32 / 2.0,
-    2.0,
-    BOARD_SIZE_J as f32 - 6.0,
+    BOARD_SIZE_COLS as f32 / 2.2,
+    0.0,
+    0.0,// BOARD_SIZE_ROWS as f32 - 6.0,
 ];
 
 pub fn setup_cameras(mut commands: Commands, mut game: ResMut<Game>) {
     let mut camera = OrthographicCameraBundle::new_3d();
-    camera.orthographic_projection.scale = 4.8;
+    camera.orthographic_projection.scale = 3.8;
     camera.transform =
         Transform::from_xyz(2.7, 3.0, 0.0).looking_at(Vec3::from(RESET_FOCUS), Vec3::Y);
     commands.spawn_bundle(camera);
     commands.spawn_bundle(UiCameraBundle::default());
-
-    // game.camera_should_focus = Vec3::from(RESET_FOCUS);
-    // game.camera_is_focus = game.camera_should_focus;
-    // let mut cam_bundle = OrthographicCameraBundle::new_2d();
-    // cam_bundle.transform =        Transform::from_xyz(
-    //     -(BOARD_SIZE_I as f32 / 1.0),
-    //     (BOARD_SIZE_I * BOARD_SIZE_J) as f32 / 10.0,
-    //     BOARD_SIZE_J as f32 / 1.0,
-    // ).looking_at(game.camera_is_focus, Vec3::Y);
-
-    // commands.spawn_bundle(cam_bundle);
-    // commands.spawn_bundle(UiCameraBundle::default());
 }
 
 pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: ResMut<Game>) {
     // reset the game state
-    game.score = 0;
 
     commands.spawn_bundle(PointLightBundle {
         transform: Transform::from_xyz(4.0, 10.0, 4.0),
@@ -65,9 +65,9 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: R
 
     // spawn the game board
     let cell_scene = asset_server.load("models/AlienCake/tile.glb#Scene0");
-    game.board = (0..BOARD_SIZE_J)
+    game.board = (0..BOARD_SIZE_ROWS)
         .map(|j| {
-            (0..BOARD_SIZE_I)
+            (0..BOARD_SIZE_COLS)
                 .map(|i| {
                     let height = 0.5;
                     commands
@@ -78,11 +78,37 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut game: R
                         .with_children(|cell| {
                             cell.spawn_scene(cell_scene.clone());
                         });
-                    Cell { height }
+                    CellHeight { height }
                 })
                 .collect()
         })
         .collect();
+
+        game.player.row = 0;
+        game.player.col = BOARD_SIZE_COLS / 2;
+    
+        commands.spawn_bundle(PointLightBundle {
+            transform: Transform::from_xyz(4.0, 5.0, 4.0),
+            ..Default::default()
+        });
+    
+    
+        // spawn the cruncher character
+        game.player.entity = Some(
+            commands
+                .spawn_bundle((
+                    Transform {
+                        translation: Vec3::new(game.player.row as f32, 0.0, game.player.col as f32),
+                        rotation: Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+                        ..Default::default()
+                    },
+                    GlobalTransform::identity(),
+                ))
+                .with_children(|cell| {
+                    cell.spawn_scene(asset_server.load("models/exsilium/bob.glb#Scene0"));
+                })
+                .id(),
+        );
 
 
     commands.spawn_bundle(TextBundle {
@@ -125,29 +151,9 @@ pub fn focus_camera(
     )>,
 ) {
     const SPEED: f32 = 2.0;
-    // if there is both a player and a bonus, target the mid-point of them
-    // if let (Some(player_entity), Some(bonus_entity)) = (game.player.entity, game.bonus.entity) {
-    //     let transform_query = transforms.q1();
-    //     if let (Ok(player_transform), Ok(bonus_transform)) = (
-    //         transform_query.get(player_entity),
-    //         transform_query.get(bonus_entity),
-    //     ) {
-    //         game.camera_should_focus = player_transform
-    //             .translation
-    //             .lerp(bonus_transform.translation, 0.5);
-    //     }
-    // // otherwise, if there is only a player, target the player
-    // } else if let Some(player_entity) = game.player.entity {
-    //     if let Ok(player_transform) = transforms.q1().get(player_entity) {
-    //         game.camera_should_focus = player_transform.translation;
-    //     }
-    // otherwise, target the middle
     {
         game.camera_should_focus = Vec3::from(RESET_FOCUS);
     }
-    // calculate the camera motion based on the difference between where the camera is looking
-    // and where it should be looking; the greater the distance, the faster the motion;
-    // smooth out the camera movement using the frame time
     let mut camera_motion = game.camera_should_focus - game.camera_is_focus;
     if camera_motion.length() > 0.2 {
         camera_motion *= SPEED * time.delta_seconds();
@@ -163,12 +169,6 @@ pub fn focus_camera(
 }
 
 
-// update the score displayed during the game
-pub fn scoreboard_system(game: Res<Game>, mut query: Query<&mut Text>) {
-    let mut text = query.single_mut();
-    text.sections[0].value = format!("dunno: {}", game.score);
-}
-
 // restart the game when pressing spacebar
 pub fn gameover_keyboard(mut state: ResMut<State<GameState>>, keyboard_input: Res<Input<KeyCode>>) {
     if keyboard_input.just_pressed(KeyCode::Space) {
@@ -176,31 +176,55 @@ pub fn gameover_keyboard(mut state: ResMut<State<GameState>>, keyboard_input: Re
     }
 }
 
-// display the number of cake eaten before losing
-pub fn display_score(mut commands: Commands, asset_server: Res<AssetServer>, game: Res<Game>) {
-    commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                margin: Rect::all(Val::Auto),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..Default::default()
-            },
-            color: Color::NONE.into(),
+
+
+
+// control the game character
+pub fn move_player(
+    mut state: ResMut<State<GameState>>,
+    mut commands: Commands,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut game: ResMut<Game>,
+    mut transforms: Query<&mut Transform>,
+) {
+    let mut moved = false;
+    let mut rotation = 0.0;
+    if keyboard_input.just_pressed(KeyCode::Up) {
+        if game.player.row < BOARD_SIZE_ROWS - 1 {
+            game.player.row += 1;
+        }
+        rotation = -std::f32::consts::FRAC_PI_2;
+        moved = true;
+    }
+    if keyboard_input.just_pressed(KeyCode::Down) {
+        if game.player.row > 0 {
+            game.player.row -= 1;
+        }
+        rotation = std::f32::consts::FRAC_PI_2;
+        moved = true;
+    }
+    if keyboard_input.just_pressed(KeyCode::Right) {
+        if game.player.col < BOARD_SIZE_COLS - 1 {
+            game.player.col += 1;
+        }
+        rotation = std::f32::consts::PI;
+        moved = true;
+    }
+    if keyboard_input.just_pressed(KeyCode::Left) {
+        if game.player.col > 0 {
+            game.player.col -= 1;
+        }
+        rotation = 0.0;
+        moved = true;
+    }
+
+    // move on the board
+    if moved {
+        *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
+            translation: Vec3::new(game.player.row as f32, 0.0, game.player.col as f32),
+            rotation: Quat::from_rotation_y(rotation),
             ..Default::default()
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(TextBundle {
-                text: Text::with_section(
-                    format!("Not sure, score or something: {}", 0),
-                    TextStyle {
-                        font: asset_server.load("fonts/VT323/VT323-Regular.ttf"),
-                        font_size: 80.0,
-                        color: Color::rgb(0.5, 0.5, 1.0),
-                    },
-                    Default::default(),
-                ),
-                ..Default::default()
-            });
-        });
+        };
+    }
+
 }

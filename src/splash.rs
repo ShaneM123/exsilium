@@ -45,7 +45,7 @@ use super::{despawn_screen, GameState};
             })
             .insert(OnSplashScreen);
         // Insert the timer as a resource
-        commands.insert_resource(SplashTimer(Timer::from_seconds(1.0, false)));
+        commands.insert_resource(SplashTimer(Timer::from_seconds(0.1, false)));
     }
 
     // Tick the timer, and change state when finished

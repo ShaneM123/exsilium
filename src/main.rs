@@ -56,7 +56,7 @@ fn setup(mut commands: Commands) {
 mod game {
     use bevy::{prelude::*, core::FixedTimestep};
 
-    use crate::board::{Game,setup_cameras,scoreboard_system,setup,teardown,display_score,gameover_keyboard, focus_camera};
+    use crate::board::{Game,setup_cameras,setup,teardown,gameover_keyboard, focus_camera, move_player};
 
     use super::{GameState};
 
@@ -73,10 +73,9 @@ mod game {
     .add_system_set(
         SystemSet::on_update(GameState::Playing)
             .with_system(focus_camera)
-            .with_system(scoreboard_system),
+            .with_system(move_player.system())
     )
     .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown))
-    .add_system_set(SystemSet::on_enter(GameState::GameOver).with_system(display_score))
     .add_system_set(SystemSet::on_update(GameState::GameOver).with_system(gameover_keyboard))
     .add_system_set(SystemSet::on_exit(GameState::GameOver).with_system(teardown))
     .add_system_set(
