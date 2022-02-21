@@ -1,96 +1,61 @@
-use bevy::{prelude::*};
 
-mod board;
-mod menu;
-mod splash;
+use std::path::Path;
 
-const TEXT_COLOR: Color = Color::rgb(0.0, 1.0, 0.0);
+use bevy::{prelude::*, render::{texture::{self, ImageType}, render_resource::Texture}};
 
-const MAIN_MENU_WIDTH: f32 = 130.00;
-const MAIN_MENU_HEIGHT: f32 = 400.00;
+const PLAYER_SPRITE: &str = "ship_B.png";
+const SPRITE_DIR: &str = "assets/models/exsilium/";
 
-// Enum that will be used as a global state for the game
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum GameState {
-    Splash,
-    Menu,
-    Game,
-    Playing,
-    GameOver,
-}
-
-// One of the two settings that can be set through the menu. It will be a resource in the app
-#[derive(Debug, Component, PartialEq, Eq, Clone, Copy)]
-enum DisplayQuality {
-    Low,
-    Medium,
-    High,
-}
-
-// One of the two settings that can be set through the menu. It will be a resource in the app
-#[derive(Debug, Component, PartialEq, Eq, Clone, Copy)]
-struct Volume(u32);
-
-
-fn main() {
+fn main(){
     App::new()
-        .add_plugins(DefaultPlugins)
-        // Insert as resource the initial value for the settings resources
-        .insert_resource(DisplayQuality::Medium)
-        .insert_resource(Volume(7))
-        .add_startup_system(setup)
-        // Declare the game state, and set its startup value
-        .add_state(GameState::Splash)
-        // Adds the plugins for each state
-        .add_plugin(splash::SplashPlugin)
-        .add_plugin(menu::MenuPlugin)
-        .add_plugin(game::GamePlugin)
-        .run();
+    .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
+    .insert_resource(WindowDescriptor{
+        title: "Radar v0.1".to_string(),
+        width: 800.0,
+        height: 600.0,
+        ..Default::default()
+    })
+    .add_plugins(DefaultPlugins)
+    .add_startup_system(setup.system())
+    .run();
 }
 
-// As there isn't an actual game, setup is just adding a `UiCameraBundle`
-fn setup(mut commands: Commands) {
-    commands.spawn_bundle(UiCameraBundle::default());
+fn setup(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+    mut windows: ResMut<Windows>,
+)
+{
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+
+    let mut window = windows.get_primary_mut().unwrap();
+    window.set_position(IVec2::new(3870, 4830));
+
+    //spawn sprite
+    let bottom = -window.height() / 2.;
+    commands.spawn_bundle(SpriteBundle {
+        texture: load_image(&mut images, PLAYER_SPRITE).0,
+        sprite: Sprite{
+            custom_size: Some(Vec2::new(200.0,100.0), ),
+            ..Default::default()
+        },
+        transform: Transform {
+            translation: Vec3::new(0., bottom + 75.0 / 2.0 + 5.0,10.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    ()
 }
 
-mod game {
-    use bevy::{prelude::*, core::FixedTimestep};
+fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>, Vec2) {
 
-    use crate::board::{Game,setup_cameras,setup,teardown,gameover_keyboard, focus_camera, move_player};
-
-    use super::{GameState};
-
-    // This plugin will contain the game(3d board)
-    pub struct GamePlugin;
-
-    impl Plugin for GamePlugin {
-        
-        fn build(&self, app: &mut App) {
-            app.insert_resource(Msaa { samples: 4 })
-    .init_resource::<Game>()
-    .add_startup_system(setup_cameras)
-    .add_system_set(SystemSet::on_enter(GameState::Game).with_system(setup))
-    .add_system_set(
-        SystemSet::on_update(GameState::Playing)
-            .with_system(focus_camera)
-            .with_system(move_player.system())
-    )
-    .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown))
-    .add_system_set(SystemSet::on_update(GameState::GameOver).with_system(gameover_keyboard))
-    .add_system_set(SystemSet::on_exit(GameState::GameOver).with_system(teardown))
-    .add_system_set(
-        SystemSet::new()
-            .with_run_criteria(FixedTimestep::step(5.0))
-    ).add_system(bevy::input::system::exit_on_esc_system);
-    
-        }
-
-    }
-}
-
-// Generic system that takes a component as a parameter, and will despawn all entities with that component
-fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
-    for entity in to_despawn.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
+    let path = Path::new(SPRITE_DIR).join(path);
+    let bytes = std::fs::read(&path).expect(&format!("cannot find {}", path.display()));
+    let image = Image::from_buffer(&bytes, ImageType::MimeType("image/png")).unwrap();
+    let size = image.texture_descriptor.size;
+    let size = Vec2::new(size.width as f32, size.height as f32);
+    let image_handle = images.add(image);
+    (image_handle, size)
 }
