@@ -1,52 +1,65 @@
-
+// #![allow(unused)] // silence unused warnings while learning
 use std::path::Path;
 
+use player::PlayerPlugin;
+
 use bevy::{prelude::*, render::{texture::{self, ImageType}, render_resource::Texture}};
+use leafwing_input_manager::prelude::*;
+
+mod player;
 
 const PLAYER_SPRITE: &str = "ship_B.png";
 const SPRITE_DIR: &str = "assets/models/exsilium/";
+const SCALE: f32 = 0.5;
+const TIME_STEP: f32 = 1. / 60.;
+const PLAYER_RESPAWN_DELAY: f64 = 2.;
 
-fn main(){
-    App::new()
-    .insert_resource(ClearColor(Color::rgb(0.04,0.04,0.04)))
-    .insert_resource(WindowDescriptor{
-        title: "Radar v0.1".to_string(),
-        width: 800.0,
-        height: 600.0,
-        ..Default::default()
-    })
-    .add_plugins(DefaultPlugins)
-    .add_startup_system(setup.system())
-    .run();
+// region:    Resources
+pub struct SpriteInfos {
+	player: (Handle<Image>, Vec2),
+}
+struct WinSize {
+	#[allow(unused)]
+	w: f32,
+	h: f32,
 }
 
-fn setup(
-    mut commands: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-    mut windows: ResMut<Windows>,
-)
-{
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+#[derive(Component)]
+struct Player;
 
-    let mut window = windows.get_primary_mut().unwrap();
-    window.set_position(IVec2::new(3870, 4830));
 
-    //spawn sprite
-    let bottom = -window.height() / 2.;
-    commands.spawn_bundle(SpriteBundle {
-        texture: load_image(&mut images, PLAYER_SPRITE).0,
-        sprite: Sprite{
-            custom_size: Some(Vec2::new(200.0,100.0), ),
-            ..Default::default()
-        },
-        transform: Transform {
-            translation: Vec3::new(0., bottom + 75.0 / 2.0 + 5.0,10.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-    ()
+#[derive(Component)]
+struct FromPlayer;
+
+struct PlayerState {
+	on: bool,
+}
+impl Default for PlayerState {
+	fn default() -> Self {
+		Self {
+			on: true,
+		}
+	}
+}
+impl PlayerState {
+	fn spawned(&mut self) {
+		self.on = true;
+	}
+}
+
+#[derive(Component)]
+struct Speed(f32);
+impl Default for Speed {
+	fn default() -> Self {
+		Self(500.)
+	}
+}
+
+
+#[derive(Actionlike, Component, PartialEq, Eq, Clone, Copy, Hash, Debug)]
+enum Action {
+    Left,
+    Right,
 }
 
 fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>, Vec2) {
@@ -58,4 +71,99 @@ fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>,
     let size = Vec2::new(size.width as f32, size.height as f32);
     let image_handle = images.add(image);
     (image_handle, size)
+}
+
+
+fn setup(
+	mut commands: Commands,
+	mut windows: ResMut<Windows>,
+    mut images: ResMut<Assets<Image>>,
+) {
+	let window = windows.get_primary_mut().unwrap();
+
+	// camera
+	commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
+
+	commands.insert_resource(SpriteInfos {
+		player: load_image(&mut images, PLAYER_SPRITE),
+	});
+
+	commands.insert_resource(WinSize {
+		w: window.width(),
+		h: window.height(),
+	});
+
+	// position window
+	// Commented out - when recording tutorial (place as you see fit)
+	// window.set_position(IVec2::new(3870, 4830));
+}
+
+fn spawn_ui(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
+    let player_entity = player_query.single();
+
+    // Left
+    let left_button = commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                ..Default::default()
+            },
+            color: Color::RED.into(),
+            ..Default::default()
+        })
+        // This component links the button to the entity with the `ActionState` component
+        .insert(ActionStateDriver {
+            action: Action::Left,
+            entity: player_entity,
+        })
+        .id();
+
+    // Right
+    let right_button = commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                ..Default::default()
+            },
+            color: Color::BLUE.into(),
+            ..Default::default()
+        })
+        .insert(ActionStateDriver {
+            action: Action::Right,
+            entity: player_entity,
+        })
+        .id();
+
+    // Container for layout
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::SpaceBetween,
+                ..Default::default()
+            },
+            color: Color::NONE.into(),
+            ..Default::default()
+        })
+        .push_children(&[left_button, right_button]);
+}
+
+
+
+fn main() {
+	App::new()
+		.insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+		.insert_resource(WindowDescriptor {
+			title: "--Exsilium--".to_string(),
+			width: 598.0,
+			height: 676.0,
+			..Default::default()
+		})
+		.add_plugins(DefaultPlugins)
+        .add_plugin(InputManagerPlugin::<Action>::default())
+		.add_startup_system(setup)
+        .add_plugin(PlayerPlugin)
+        .add_startup_system_to_stage("game_setup_actors", spawn_ui)
+		.run();
 }
