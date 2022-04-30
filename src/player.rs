@@ -34,7 +34,8 @@ fn player_spawn(
     let mut input_map = InputMap::default();
     input_map.insert(Action::Left, KeyCode::Left);
     input_map.insert(Action::Right, KeyCode::Right);
-    
+    input_map.insert(Action::Up, KeyCode::Up);
+    input_map.insert(Action::Down, KeyCode::Down);
 
 	let _now = time.seconds_since_startup();
 
@@ -61,16 +62,25 @@ fn player_spawn(
 }
 
 fn move_player(mut query: Query<(&ActionState<Action>, &mut Transform), With<Player>>) {
-    let (action_state, mut transform) = query.single_mut();
+    //query.for_each(|x| println!("{:?}", x));
+    //println!("QUERY: {:?}");
+    let (action_state, mut transform) = query.iter_mut().next().unwrap();
 
     // To only perform the action once when the button is first clicked,
     // use `.just_pressed` instead.
     // To trigger when the click is released, use `.just_released`
-    if action_state.pressed(&Action::Left) {
+    if action_state.pressed(Action::Left) {
         transform.translation.x -= 1.;
     }
 
-    if action_state.pressed(&Action::Right) {
-        transform.translation.x += 1. * TIME_STEP;
+    if action_state.pressed(Action::Right) {
+        transform.translation.x += 1.;
+    }
+    if action_state.pressed(Action::Up) {
+        transform.translation.y += 1.;
+    }
+
+    if action_state.pressed(Action::Down) {
+        transform.translation.y -= 1.;
     }
 }
