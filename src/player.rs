@@ -11,15 +11,15 @@ impl Plugin for PlayerPlugin {
 	fn build(&self, app: &mut App) {
         app
         .insert_resource(PlayerState::default())
-        .add_system(move_player.system())
+        .add_system(move_player)
         .add_startup_stage(
             "game_setup_actors",
-            SystemStage::single(player_spawn.system()),
+            SystemStage::single(player_spawn),
         )
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.5))
-                .with_system(player_spawn.system()),
+                .with_system(player_spawn),
         );
 }
 	}
