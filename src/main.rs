@@ -3,7 +3,7 @@ use std::path::Path;
 
 use player::PlayerPlugin;
 
-use bevy::{prelude::*, render::{texture::{self, ImageType}, render_resource::Texture}};
+use bevy::{prelude::*, render::{texture::{self, ImageType, CompressedImageFormats}, render_resource::Texture}};
 use leafwing_input_manager::prelude::*;
 
 mod player;
@@ -60,13 +60,15 @@ impl Default for Speed {
 enum Action {
     Left,
     Right,
+    Up,
+    Down,
 }
 
 fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>, Vec2) {
 
     let path = Path::new(SPRITE_DIR).join(path);
     let bytes = std::fs::read(&path).expect(&format!("cannot find {}", path.display()));
-    let image = Image::from_buffer(&bytes, ImageType::MimeType("image/png")).unwrap();
+    let image = Image::from_buffer(&bytes, ImageType::MimeType("image/png"), CompressedImageFormats::all(), false).unwrap();
     let size = image.texture_descriptor.size;
     let size = Vec2::new(size.width as f32, size.height as f32);
     let image_handle = images.add(image);
@@ -161,9 +163,9 @@ fn main() {
 			..Default::default()
 		})
 		.add_plugins(DefaultPlugins)
-        .add_plugin(InputManagerPlugin::<Action>::default())
-		.add_startup_system(setup)
-        .add_plugin(PlayerPlugin)
-        .add_startup_system_to_stage("game_setup_actors", spawn_ui)
+         .add_plugin(InputManagerPlugin::<Action>::default())
+		 .add_startup_system(setup)
+         .add_plugin(PlayerPlugin)
+      //  .add_startup_system_to_stage("game_setup_actors", spawn_ui)
 		.run();
 }
