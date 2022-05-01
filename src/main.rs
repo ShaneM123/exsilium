@@ -1,96 +1,169 @@
-use bevy::{prelude::*};
+// #![allow(unused)] // silence unused warnings while learning
+use std::path::Path;
 
-mod board;
-mod menu;
-mod splash;
+use player::PlayerPlugin;
 
-const TEXT_COLOR: Color = Color::rgb(0.0, 1.0, 0.0);
+use bevy::{prelude::*, render::{texture::{self, ImageType}, render_resource::Texture}};
+use leafwing_input_manager::prelude::*;
 
-const MAIN_MENU_WIDTH: f32 = 130.00;
-const MAIN_MENU_HEIGHT: f32 = 400.00;
+mod player;
 
-// Enum that will be used as a global state for the game
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum GameState {
-    Splash,
-    Menu,
-    Game,
-    Playing,
-    GameOver,
+const PLAYER_SPRITE: &str = "ship_B.png";
+const SPRITE_DIR: &str = "assets/models/exsilium/";
+const SCALE: f32 = 0.5;
+const TIME_STEP: f32 = 1. / 60.;
+const PLAYER_RESPAWN_DELAY: f64 = 2.;
+
+// region:    Resources
+pub struct SpriteInfos {
+	player: (Handle<Image>, Vec2),
+}
+struct WinSize {
+	#[allow(unused)]
+	w: f32,
+	h: f32,
 }
 
-// One of the two settings that can be set through the menu. It will be a resource in the app
-#[derive(Debug, Component, PartialEq, Eq, Clone, Copy)]
-enum DisplayQuality {
-    Low,
-    Medium,
-    High,
+#[derive(Component)]
+struct Player;
+
+
+#[derive(Component)]
+struct FromPlayer;
+
+struct PlayerState {
+	on: bool,
+}
+impl Default for PlayerState {
+	fn default() -> Self {
+		Self {
+			on: true,
+		}
+	}
+}
+impl PlayerState {
+	fn spawned(&mut self) {
+		self.on = true;
+	}
 }
 
-// One of the two settings that can be set through the menu. It will be a resource in the app
-#[derive(Debug, Component, PartialEq, Eq, Clone, Copy)]
-struct Volume(u32);
+#[derive(Component)]
+struct Speed(f32);
+impl Default for Speed {
+	fn default() -> Self {
+		Self(500.)
+	}
+}
+
+
+#[derive(Actionlike, Component, PartialEq, Eq, Clone, Copy, Hash, Debug)]
+enum Action {
+    Left,
+    Right,
+}
+
+fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>, Vec2) {
+
+    let path = Path::new(SPRITE_DIR).join(path);
+    let bytes = std::fs::read(&path).expect(&format!("cannot find {}", path.display()));
+    let image = Image::from_buffer(&bytes, ImageType::MimeType("image/png")).unwrap();
+    let size = image.texture_descriptor.size;
+    let size = Vec2::new(size.width as f32, size.height as f32);
+    let image_handle = images.add(image);
+    (image_handle, size)
+}
+
+
+fn setup(
+	mut commands: Commands,
+	mut windows: ResMut<Windows>,
+    mut images: ResMut<Assets<Image>>,
+) {
+	let window = windows.get_primary_mut().unwrap();
+
+	// camera
+	commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
+
+	commands.insert_resource(SpriteInfos {
+		player: load_image(&mut images, PLAYER_SPRITE),
+	});
+
+	commands.insert_resource(WinSize {
+		w: window.width(),
+		h: window.height(),
+	});
+
+	// position window
+	// Commented out - when recording tutorial (place as you see fit)
+	// window.set_position(IVec2::new(3870, 4830));
+}
+
+fn spawn_ui(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
+    let player_entity = player_query.single();
+
+    // Left
+    let left_button = commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                ..Default::default()
+            },
+            color: Color::RED.into(),
+            ..Default::default()
+        })
+        // This component links the button to the entity with the `ActionState` component
+        .insert(ActionStateDriver {
+            action: Action::Left,
+            entity: player_entity,
+        })
+        .id();
+
+    // Right
+    let right_button = commands
+        .spawn_bundle(ButtonBundle {
+            style: Style {
+                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                ..Default::default()
+            },
+            color: Color::BLUE.into(),
+            ..Default::default()
+        })
+        .insert(ActionStateDriver {
+            action: Action::Right,
+            entity: player_entity,
+        })
+        .id();
+
+    // Container for layout
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::SpaceBetween,
+                ..Default::default()
+            },
+            color: Color::NONE.into(),
+            ..Default::default()
+        })
+        .push_children(&[left_button, right_button]);
+}
+
 
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        // Insert as resource the initial value for the settings resources
-        .insert_resource(DisplayQuality::Medium)
-        .insert_resource(Volume(7))
-        .add_startup_system(setup)
-        // Declare the game state, and set its startup value
-        .add_state(GameState::Splash)
-        // Adds the plugins for each state
-        .add_plugin(splash::SplashPlugin)
-        .add_plugin(menu::MenuPlugin)
-        .add_plugin(game::GamePlugin)
-        .run();
-}
-
-// As there isn't an actual game, setup is just adding a `UiCameraBundle`
-fn setup(mut commands: Commands) {
-    commands.spawn_bundle(UiCameraBundle::default());
-}
-
-mod game {
-    use bevy::{prelude::*, core::FixedTimestep};
-
-    use crate::board::{Game,setup_cameras,setup,teardown,gameover_keyboard, focus_camera, move_player};
-
-    use super::{GameState};
-
-    // This plugin will contain the game(3d board)
-    pub struct GamePlugin;
-
-    impl Plugin for GamePlugin {
-        
-        fn build(&self, app: &mut App) {
-            app.insert_resource(Msaa { samples: 4 })
-    .init_resource::<Game>()
-    .add_startup_system(setup_cameras)
-    .add_system_set(SystemSet::on_enter(GameState::Game).with_system(setup))
-    .add_system_set(
-        SystemSet::on_update(GameState::Playing)
-            .with_system(focus_camera)
-            .with_system(move_player.system())
-    )
-    .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown))
-    .add_system_set(SystemSet::on_update(GameState::GameOver).with_system(gameover_keyboard))
-    .add_system_set(SystemSet::on_exit(GameState::GameOver).with_system(teardown))
-    .add_system_set(
-        SystemSet::new()
-            .with_run_criteria(FixedTimestep::step(5.0))
-    ).add_system(bevy::input::system::exit_on_esc_system);
-    
-        }
-
-    }
-}
-
-// Generic system that takes a component as a parameter, and will despawn all entities with that component
-fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
-    for entity in to_despawn.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
+	App::new()
+		.insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+		.insert_resource(WindowDescriptor {
+			title: "--Exsilium--".to_string(),
+			width: 598.0,
+			height: 676.0,
+			..Default::default()
+		})
+		.add_plugins(DefaultPlugins)
+        .add_plugin(InputManagerPlugin::<Action>::default())
+		.add_startup_system(setup)
+        .add_plugin(PlayerPlugin)
+        .add_startup_system_to_stage("game_setup_actors", spawn_ui)
+		.run();
 }
