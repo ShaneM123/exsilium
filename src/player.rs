@@ -15,11 +15,6 @@ impl Plugin for PlayerPlugin {
         .add_startup_stage(
             "game_setup_actors",
             SystemStage::single(player_spawn),
-        )
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(0.5))
-                .with_system(player_spawn),
         );
 }
 	}
@@ -38,7 +33,6 @@ fn player_spawn(
     input_map.insert(Action::Down, KeyCode::Down);
 
 	let _now = time.seconds_since_startup();
-
 		let bottom = -win_size.h / 2.;
 		commands
 			.spawn_bundle(SpriteBundle {
@@ -62,9 +56,8 @@ fn player_spawn(
 }
 
 fn move_player(mut query: Query<(&ActionState<Action>, &mut Transform), With<Player>>) {
-    //query.for_each(|x| println!("{:?}", x));
-    //println!("QUERY: {:?}");
-    let (action_state, mut transform) = query.iter_mut().next().unwrap();
+
+    let (action_state, mut transform) = query.single_mut();
 
     // To only perform the action once when the button is first clicked,
     // use `.just_pressed` instead.
