@@ -24,7 +24,7 @@ struct WinSize {
 	h: f32,
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct Player;
 
 
@@ -101,9 +101,8 @@ fn setup(
 	// window.set_position(IVec2::new(3870, 4830));
 }
 
-fn spawn_ui(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
+fn spawn_ui(mut commands: Commands, mut player_query: Query<Entity, With<Player>>) {
     let player_entity = player_query.single();
-
     // Left
     let left_button = commands
         .spawn_bundle(ButtonBundle {
@@ -166,6 +165,6 @@ fn main() {
          .add_plugin(InputManagerPlugin::<Action>::default())
 		 .add_startup_system(setup)
          .add_plugin(PlayerPlugin)
-      //  .add_startup_system_to_stage("game_setup_actors", spawn_ui)
+         .add_system(spawn_ui.after("game_setup_actors"))
 		.run();
 }
