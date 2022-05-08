@@ -106,8 +106,25 @@ fn spawn_ui(mut commands: Commands, mut player_query: Query<Entity, With<Player>
     // Left
     let left_button = commands
         .spawn_bundle(ButtonBundle {
+            // node: Node {
+            //     size:
+            // }
             style: Style {
-                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                position_type: PositionType::Absolute,
+
+                align_items: AlignItems::FlexStart,
+                align_content: AlignContent::Center,
+                size: Size::new(Val::Px(40.0), Val::Px(40.0)),
+                flex_direction: FlexDirection::Column,
+                position: Rect {
+                    left: Val::Px(500.0),
+                    right: Val::Px(490.0),
+                    top: Val::Px(100.0),
+                    bottom: Val::Px(90.0),
+                    ..default()
+                },
+                flex_wrap: FlexWrap::Wrap,
+
                 ..Default::default()
             },
             color: Color::RED.into(),
@@ -124,7 +141,15 @@ fn spawn_ui(mut commands: Commands, mut player_query: Query<Entity, With<Player>
     let right_button = commands
         .spawn_bundle(ButtonBundle {
             style: Style {
-                size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                size: Size::new(Val::Px(40.0), Val::Px(40.0)),
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    left: Val::Px(500.0),
+                    right: Val::Px(490.0),
+                    top: Val::Px(10.0),
+                    bottom: Val::Px(20.0),
+                    ..default()
+                },
                 ..Default::default()
             },
             color: Color::BLUE.into(),
@@ -140,14 +165,21 @@ fn spawn_ui(mut commands: Commands, mut player_query: Query<Entity, With<Player>
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                justify_content: JustifyContent::SpaceBetween,
+                size: Size::new(Val::Px(10.0), Val::Px(10.0)),
+                position_type: PositionType::Absolute,
+               // justify_content: JustifyContent::SpaceBetween,
+                // flex_wrap: FlexWrap::NoWrap,
+                // overflow: Overflow::Hidden,
+                // border: Rect::all(Val::Px(2.0)),
                 ..Default::default()
             },
+            
             color: Color::NONE.into(),
+            
             ..Default::default()
         })
-        .push_children(&[left_button, right_button]);
+        .push_children(&[left_button,right_button]);
+        //.push_children(&[left_button, right_button]);
 }
 
 
