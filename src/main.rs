@@ -1,202 +1,101 @@
-// #![allow(unused)] // silence unused warnings while learning
-use std::path::Path;
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle, text::Text2dBounds};
+mod menu;
+use crate::menu::*;
 
-use player::PlayerPlugin;
-
-use bevy::{prelude::*, render::{texture::{self, ImageType, CompressedImageFormats}, render_resource::Texture}};
-use leafwing_input_manager::prelude::*;
-
-mod player;
-
-const PLAYER_SPRITE: &str = "ship_B.png";
-const SPRITE_DIR: &str = "assets/models/exsilium/";
-const SCALE: f32 = 0.5;
-const TIME_STEP: f32 = 1. / 60.;
-const PLAYER_RESPAWN_DELAY: f64 = 2.;
-
-// region:    Resources
-pub struct SpriteInfos {
-	player: (Handle<Image>, Vec2),
-}
-struct WinSize {
-	#[allow(unused)]
-	w: f32,
-	h: f32,
-}
-
-#[derive(Component, Debug)]
-struct Player;
-
-
-#[derive(Component)]
-struct FromPlayer;
-
-struct PlayerState {
-	on: bool,
-}
-impl Default for PlayerState {
-	fn default() -> Self {
-		Self {
-			on: true,
-		}
-	}
-}
-impl PlayerState {
-	fn spawned(&mut self) {
-		self.on = true;
-	}
-}
-
-#[derive(Component)]
-struct Speed(f32);
-impl Default for Speed {
-	fn default() -> Self {
-		Self(500.)
-	}
-}
-
-
-#[derive(Actionlike, Component, PartialEq, Eq, Clone, Copy, Hash, Debug)]
-enum Action {
-    Left,
-    Right,
-    Up,
-    Down,
-}
-
-fn load_image(images: &mut ResMut<Assets<Image>>, path: &str) -> (Handle<Image>, Vec2) {
-
-    let path = Path::new(SPRITE_DIR).join(path);
-    let bytes = std::fs::read(&path).expect(&format!("cannot find {}", path.display()));
-    let image = Image::from_buffer(&bytes, ImageType::MimeType("image/png"), CompressedImageFormats::all(), false).unwrap();
-    let size = image.texture_descriptor.size;
-    let size = Vec2::new(size.width as f32, size.height as f32);
-    let image_handle = images.add(image);
-    (image_handle, size)
-}
-
-
-fn setup(
-	mut commands: Commands,
-	mut windows: ResMut<Windows>,
-    mut images: ResMut<Assets<Image>>,
-) {
-	let window = windows.get_primary_mut().unwrap();
-
-	// camera
-	commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(UiCameraBundle::default());
-
-	commands.insert_resource(SpriteInfos {
-		player: load_image(&mut images, PLAYER_SPRITE),
-	});
-
-	commands.insert_resource(WinSize {
-		w: window.width(),
-		h: window.height(),
-	});
-
-	// position window
-	// Commented out - when recording tutorial (place as you see fit)
-	// window.set_position(IVec2::new(3870, 4830));
-}
-
-fn spawn_ui(mut commands: Commands, mut player_query: Query<Entity, With<Player>>) {
-    let player_entity = player_query.single();
-    // Left
-    let left_button = commands
-        .spawn_bundle(ButtonBundle {
-            // node: Node {
-            //     size:
-            // }
-            style: Style {
-                position_type: PositionType::Absolute,
-
-                align_items: AlignItems::FlexStart,
-                align_content: AlignContent::Center,
-                size: Size::new(Val::Px(40.0), Val::Px(40.0)),
-                flex_direction: FlexDirection::Column,
-                position: Rect {
-                    left: Val::Px(500.0),
-                    right: Val::Px(490.0),
-                    top: Val::Px(100.0),
-                    bottom: Val::Px(90.0),
-                    ..default()
-                },
-                flex_wrap: FlexWrap::Wrap,
-
-                ..Default::default()
-            },
-            color: Color::RED.into(),
-            ..Default::default()
-        })
-        // This component links the button to the entity with the `ActionState` component
-        .insert(ActionStateDriver {
-            action: Action::Left,
-            entity: player_entity,
-        })
-        .id();
-
-    // Right
-    let right_button = commands
-        .spawn_bundle(ButtonBundle {
-            style: Style {
-                size: Size::new(Val::Px(40.0), Val::Px(40.0)),
-                position_type: PositionType::Absolute,
-                position: Rect {
-                    left: Val::Px(500.0),
-                    right: Val::Px(490.0),
-                    top: Val::Px(10.0),
-                    bottom: Val::Px(20.0),
-                    ..default()
-                },
-                ..Default::default()
-            },
-            color: Color::BLUE.into(),
-            ..Default::default()
-        })
-        .insert(ActionStateDriver {
-            action: Action::Right,
-            entity: player_entity,
-        })
-        .id();
-
-    // Container for layout
-    commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Px(10.0), Val::Px(10.0)),
-                position_type: PositionType::Absolute,
-               // justify_content: JustifyContent::SpaceBetween,
-                // flex_wrap: FlexWrap::NoWrap,
-                // overflow: Overflow::Hidden,
-                // border: Rect::all(Val::Px(2.0)),
-                ..Default::default()
-            },
-            
-            color: Color::NONE.into(),
-            
-            ..Default::default()
-        })
-        .push_children(&[left_button,right_button]);
-        //.push_children(&[left_button, right_button]);
-}
-
-
+const TEXT_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 
 fn main() {
-	App::new()
-		.insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
-		.insert_resource(WindowDescriptor {
-			title: "--Exsilium--".to_string(),
-			width: 598.0,
-			height: 676.0,
-			..Default::default()
-		})
-		.add_plugins(DefaultPlugins)
-         .add_plugin(InputManagerPlugin::<Action>::default())
-		 .add_startup_system(setup)
-         .add_plugin(PlayerPlugin)
-         .add_system(spawn_ui.after("game_setup_actors"))
-		.run();
+    App::new()
+        .add_plugins(DefaultPlugins)
+        // Insert as resource the initial value for the settings resources
+        .insert_resource(DisplayQuality::Medium)
+        .insert_resource(Volume(7))
+        .add_startup_system(initial_setup)
+        // Declare the game state, and set its startup value
+        .add_state(GameState::Splash)
+        // Adds the plugins for each state
+        .add_plugin(menu::SplashPlugin)
+        .add_plugin(menu::MenuPlugin)
+        .add_plugin(game::GamePlugin)
+        .run();
+}
+
+    fn initial_setup(
+        mut commands: Commands,
+    ) {
+        commands.spawn(Camera2dBundle::default());
+    }
+
+
+mod game {
+    use bevy::{prelude::*, text::Text2dBounds, sprite::MaterialMesh2dBundle};
+
+    use crate::menu::{self, OnGameScreen};
+
+    use super::{ DisplayQuality, GameState, Volume};
+
+    // This plugin will contain the game. In this case, it's just be a screen that will
+    // display the current settings for 5 seconds before returning to the menu
+    pub struct GamePlugin;
+
+    impl Plugin for GamePlugin {
+        fn build(&self, app: &mut App) {
+            app.add_system_set(SystemSet::on_enter(GameState::Game).with_system(game_setup))
+                .add_system_set(SystemSet::on_update(GameState::Game).with_system(game))
+                .add_system_set(
+                    SystemSet::on_exit(GameState::Game).with_system(menu::despawn_screen::<OnGameScreen>),
+                );
+        }
+    }
+
+
+    #[derive(Resource, Deref, DerefMut)]
+    struct GameTimer(Timer);
+
+    fn game_setup(
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<ColorMaterial>>,
+    ) {
+        //let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+        let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+        let text_style = TextStyle {
+            font_size: 60.0,
+            color: Color::WHITE,
+            font,
+        };
+        let box_size = Vec2::new(300.0, 200.0);
+        let box_position = Vec2::new(0.0, 250.0);
+        commands.spawn(Text2dBundle {
+            text: Text::from_section("Conscious City", text_style),
+            text_2d_bounds: Text2dBounds {
+                // Wrap text in the rectangle
+                size: box_size,
+            },
+            transform: Transform::default().with_scale(Vec3::splat(128.)),
+            ..default()
+        });
+        commands.spawn(MaterialMesh2dBundle {
+            mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
+            transform: Transform::default().with_scale(Vec3::splat(128.)),
+            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+            ..default()
+        });
+
+        // Spawn a 5 seconds timer to trigger going back to the menu
+        commands.insert_resource(GameTimer(Timer::from_seconds(5.0, TimerMode::Once)));
+    }
+
+
+    // Tick the timer, and change state when finished
+    fn game(
+        time: Res<Time>,
+        mut game_state: ResMut<State<GameState>>,
+        mut timer: ResMut<GameTimer>,
+    ) {
+        if timer.tick(time.delta()).finished() {
+            game_state.set(GameState::Menu).unwrap();
+        }
+    }
 }
